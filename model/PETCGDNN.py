@@ -43,7 +43,7 @@ class Model(nn.Module):
     """
 
     def __init__(self, num_classes=26, frame_length=1024, hidden_size=128):
-        super(PETCGDNN, self).__init__()
+        super(Model, self).__init__()
         self.num_classes = num_classes
         self.features = nn.Sequential(
             PET(frame_length=frame_length),
@@ -67,7 +67,7 @@ class Model(nn.Module):
 
 if __name__ == "__main__":
     device = "cuda:1" if torch.cuda.is_available() else "cpu"
-    model = PETCGDNN(num_classes=26, frame_length=1024).to("cuda:1")
+    model = Model(num_classes=26, frame_length=1024).to("cuda:1")
     x = torch.rand((400, 2, 1024)).to(device)
     start = time.time()
     y = model(x)

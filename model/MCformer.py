@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 
-class MCformer(nn.Module):
+class Model(nn.Module):
     """`MCformer <https://ieeexplore.ieee.org/abstract/document/9685815>`_ backbone
     The input for MCformer is a 1*2*L frame
     Args:
@@ -14,43 +14,80 @@ class MCformer(nn.Module):
 
     def __init__(
         self,
-        fea_dim: int = 32,
-        frame_length: int = 128,
-        num_classes: int = -1,
-        init_cfg=None,
+        configs,
     ) -> None:
-        super(MCformer, self).__init__(init_cfg)
-        self.frame_length = frame_length
-        self.num_classes = num_classes
-        self.cnn = nn.Sequential(
-            nn.Conv1d(2, fea_dim, kernel_size=65, padding="same"),
+        super(Model, self).__init__()
+
+        self.seq_len = configs.seq_len
+        self.n_classes = configs.n_classes
+
+        # The demension of features model and feedforward in transformer
+        self.d_model = configs.d_model
+        self.d_ff = configs.d_ff
+        # The number of heads in multi-head attention
+        self.n_heads = configs.n_heads
+
+        # The number of the transformer layers
+        self.n_layers = configs.n_layers
+
+        # The rate of dropout layers
+        self.dropout = configs.dropout
+
+        # Create the CNN layer for embedding
+        self.embedding = nn.Sequential(
+            nn.Conv1d(
+                in_channels=2, out_channels=self.d_model, kernel_size=65, padding="same"
+            ),
             nn.ReLU(inplace=True),
         )
-        self.fea_dim = fea_dim
 
         # Create one transformer encoder layer
         encoder_layer = nn.TransformerEncoderLayer(
-            fea_dim, 4, dim_feedforward=fea_dim, batch_first=True
+            self.d_model, self.n_heads, dim_feedforward=self.d_ff, batch_first=True
         )
-        # Stack multiple layers to create the transformer encoder
-        self.tnn = nn.TransformerEncoder(encoder_layer, num_layers=4)
 
-        if self.num_classes > 0:
-            self.classifier = nn.Sequential(
-                nn.Linear(4 * self.fea_dim, 128),
-                nn.ReLU(inplace=True),
-                nn.Dropout(0.5),
-                nn.Linear(128, self.num_classes),
-            )
+        # Stack multiple layers to create the transformer encoder
+        self.backbone = nn.TransformerEncoder(encoder_layer, num_layers=self.n_layers)
+
+        # TODO: 后续可以统一去整合classifier部分
+        self.classifier = nn.Sequential(
+            nn.Linear(4 * self.d_model, self.d_ff),
+            nn.ReLU(inplace=True),
+            nn.Dropout(p=self.dropout),
+            nn.Linear(self.d_ff, self.n_classes),
+        )
 
     def forward(self, x_enc: torch.FloatTensor) -> tuple:
-        x_enc = self.cnn(x_enc)
+        # Get the embedding of data
+        x_enc = self.embedding(x_enc)
         x_enc = torch.squeeze(x_enc, dim=2)
         x_enc = torch.transpose(x_enc, 1, 2)
-        x_enc = self.tnn(x_enc)
-        x_enc = x_enc[:, :4, :]
-        x_enc = torch.reshape(x_enc, [-1, 4 * self.fea_dim])
-        if self.num_classes > 0:
-            x_enc = self.classifier(x_enc)
 
-        return x_enc
+        # Pass through the transformer encoder layers
+        x_dec = self.backbone(x_enc)
+
+        # Get the outputs of the first 4 tokens
+        x_dec = x_dec[:, :4, :]
+        x_dec = torch.reshape(x_dec, [-1, 4 * self.d_model])
+
+        # Classifier
+        return self.classifier(x_dec)
+
+
+if __name__ == "__main__":
+
+    class Configs:
+        seq_len = 128
+        n_classes = 11
+        d_model = 64
+        d_ff = 256
+        n_heads = 8
+        n_layers = 4
+        dropout = 0.1
+
+    model = Model(configs=Configs())
+
+    inputs = torch.rand((4, 2, 128))
+    outputs = model(inputs)
+
+    print(outputs.shape)
