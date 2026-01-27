@@ -26,7 +26,7 @@ class ModulationFineTuningDataset(Dataset):
     ) -> None:
         super().__init__()
         self.features = features
-        self.labels = labels
+        self.labels = labels.long()
 
         # The length of the dataset
         self._dataset_length = len(self.labels)
@@ -68,7 +68,11 @@ class BaseDataLoader(object):
         # Fix the split ratio
         self.train_ratio = configs.split_ratio
         self.test_ratio = self.val_ratio = (1 - self.split_ratio) / 2
-        self.split_ratio = [self.train_ratio, self.test_ratio, self.val_ratio]  # train, val, test
+        self.split_ratio = [
+            self.train_ratio,
+            self.test_ratio,
+            self.val_ratio,
+        ]  # train, val, test
 
     @classmethod
     def load_pkl(cls, file_path: str) -> Dict:

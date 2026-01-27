@@ -345,7 +345,7 @@ def print_configs(
     accelerator: Accelerator,
     time_now: str,
     config: Dict[str, Any],
-    experiment_name: str = "Spectrum Prediction",
+    experiment_name: str = "Auto Modulation Classification",
     model_name: str = "SpectrumTime",
     dataset: str = "spec4",
     mode: str = "supervised",
@@ -395,17 +395,3 @@ def print_configs(
 
     # Print to console via accelerator (supports distributed training)
     accelerator.print(output_text)
-
-
-def MSE(
-    pred: torch.FloatTensor, true: torch.FloatTensor
-) -> Union[torch.FloatTensor, float]:
-    """Calculate the mean squared error between two tensors."""
-    return torch.mean((true - pred) ** 2)
-
-
-def MAE(
-    pred: torch.FloatTensor, true: torch.FloatTensor
-) -> Union[torch.FloatTensor, float]:
-    """Calculate the mean absolute error between two tensors."""
-    return torch.mean(torch.abs(true - pred))

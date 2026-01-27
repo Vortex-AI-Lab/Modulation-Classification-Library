@@ -37,6 +37,12 @@ parser.add_argument(
     help="The dataset to be used for Auto Modulation Classification",
 )
 parser.add_argument(
+    "--snr",
+    type=int,
+    default=0,
+    help="The signal-to-noise ratio (SNR) for the dataset",
+)
+parser.add_argument(
     "--root_path",
     type=str,
     default="./dataset",

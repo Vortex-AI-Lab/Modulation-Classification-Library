@@ -20,14 +20,14 @@ class Model(nn.Module):
 
         # 输入序列的长度 128 1024
         self.seq_len = configs.seq_len
-        
+
         # 分类的类别数目
         self.n_classes = configs.n_classes
 
         # The demension of features model and feedforward in transformer
         self.d_model = configs.d_model
         self.d_ff = configs.d_ff
-        
+
         # The number of heads in multi-head attention
         self.n_heads = configs.n_heads
 
