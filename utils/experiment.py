@@ -180,6 +180,7 @@ class BaseExperiment(ABC):
         targets: torch.Tensor,
         accuracy: Union[float, torch.Tensor, np.ndarray],
         confusion_matrix: Union[torch.Tensor, np.ndarray],
+        time_mean: Union[float, np.ndarray],
     ) -> None:
         """Save experimental results to a specified path."""
         results_path = self.checkpoint_path + "/results.pth"
@@ -196,6 +197,7 @@ class BaseExperiment(ABC):
                     "targets": targets,
                     "accuracy": accuracy,
                     "confusion_matrix": confusion_matrix,
+                    "time_mean": time_mean,
                 },
                 f=results_path,
                 safe_serialization=True,
@@ -241,7 +243,28 @@ class BaseExperiment(ABC):
                 "Time": time_mean,
                 "split_ratio": self.configs.split_ratio,
                 "seq_len": self.configs.seq_len,
+                "n_classes": self.configs.n_classes,
+                "criterion": self.configs.criterion,
+                "optimizer": self.configs.optimizer,
+                "learning_rate": self.configs.learning_rate,
+                "batch_size": self.configs.batch_size,
+                "setting": self.setting,
+                "seed": self.configs.seed,
+                "path": self.checkpoint_path,
             }
+
+            # logging the results to csv file
+            logging_results(
+                accelerator=self.accelerator,
+                logging_path="./results.csv",
+                headers=self.logging_headers,
+                messages=messages,
+            )
+
+            # Print the state
+            self.accelerator.print(
+                Fore.GREEN + "The results logging is done." + Fore.RESET
+            )
 
 
 class SupervisedExperiment(BaseExperiment):
@@ -251,6 +274,7 @@ class SupervisedExperiment(BaseExperiment):
     ) -> None:
         super().__init__(configs=configs, accelerator=accelerator, setting=setting)
         self.print_start_message(time_now=time_now)
+        self.time_now = time_now
 
         # Load the data for training and testing
         self.train_loader, self.val_loader, self.test_loader = self.load_data()
@@ -493,6 +517,13 @@ class SupervisedExperiment(BaseExperiment):
             predictions=predictions, targets=targets, num_classes=self.num_classes
         )
 
-        # 保存结果
+        # save the all results in experiment
+        self.save_results(
+            predictions=predictions,
+            targets=targets,
+            confusion_matrix=confusion_matrix,
+            time_mean=time_mean,
+        )
 
         # logging the results to csv file
+        self.logging(time_now=self.time_now, accuracy=accuracy, time_mean=time_mean)
