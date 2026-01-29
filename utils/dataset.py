@@ -67,7 +67,7 @@ class BaseDataLoader(object):
 
         # Fix the split ratio
         self.train_ratio = configs.split_ratio
-        self.test_ratio = self.val_ratio = (1 - self.split_ratio) / 2
+        self.test_ratio = self.val_ratio = (1 - configs.split_ratio) / 2
         self.split_ratio = [
             self.train_ratio,
             self.test_ratio,
@@ -131,7 +131,7 @@ class BaseDataLoader(object):
         return X_normalized
 
 
-class RML2016DataLoader(BaseDataLoader):
+class RML2016aDataLoader(BaseDataLoader):
     """Data loader for the RML2016.10a dataset."""
 
     def __init__(self, configs) -> None:
@@ -188,9 +188,6 @@ class RML2016DataLoader(BaseDataLoader):
         mods, snrs = [
             sorted(list(set([k[j] for k in data_dict.keys()]))) for j in [0, 1]
         ]
-
-        print("mods:", mods)
-        print("snrs:", snrs)
 
         # 创建训练集、验证集和测试集的数据列表
         X_train_list, X_val_list, X_test_list, y_train_list, y_val_list, y_test_list = (
@@ -254,7 +251,11 @@ class RML2016DataLoader(BaseDataLoader):
         )
 
 
-class RML2018DataLoader(BaseDataLoader):
+class RML2016bDataLoader(BaseDataLoader):
+    """Data loader for the RML2016b dataset."""
+
+
+class RML2018aDataLoader(BaseDataLoader):
     """Data loader for the RML2018.01a dataset."""
 
     def __init__(self, configs) -> None:
