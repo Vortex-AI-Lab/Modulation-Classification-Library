@@ -13,7 +13,7 @@ from sklearn.model_selection import train_test_split
 
 from tqdm import tqdm
 
-import pickle
+import pickle, h5py
 
 
 class ModulationFineTuningDataset(Dataset):
@@ -78,6 +78,13 @@ class BaseDataLoader(object):
     def load_pkl(cls, file_path: str) -> Dict:
         """Load a pickle file and return its content as a dictionary."""
         return pickle.load(open(file_path, "rb"), encoding="iso-8859-1")
+
+    @classmethod
+    def load_dat(cls, file_path: str) -> Dict:
+        """Load a .dat file and return its content as a dictionary."""
+        return pickle.load(
+            open(file_path, "rb"), encoding="iso-8859-1"
+        )  # Xd2(22W,2,128)
 
     def get_data_loader(
         self,
@@ -183,7 +190,7 @@ class RML2016aDataLoader(BaseDataLoader):
     def load(self, batch_size: Optional[int] = None, shuffle: Optional[bool] = None):
         """Load the RML2016.10a dataset and return data loaders."""
         # Load the dataset
-        data_dict = pickle.load(open(self.file_path, "rb"), encoding="iso-8859-1")
+        data_dict = self.load_pkl(file_path=self.file_path)
 
         mods, snrs = [
             sorted(list(set([k[j] for k in data_dict.keys()]))) for j in [0, 1]
@@ -252,14 +259,123 @@ class RML2016aDataLoader(BaseDataLoader):
 
 
 class RML2016bDataLoader(BaseDataLoader):
-    """Data loader for the RML2016b dataset."""
+    """Data loader for the RML2016.10b dataset."""
 
-
-class RML2018aDataLoader(BaseDataLoader):
-    """Data loader for the RML2018.01a dataset."""
 
     def __init__(self, configs) -> None:
         super().__init__(configs)
+
+    @property
+    def class_list(self) -> List[str]:
+        """Return the list of modulation classes in the RML2016.10b dataset."""
+        return [
+            "8PSK",
+            "AM-DSB",
+            "BPSK",
+            "CPFSK",
+            "GFSK",
+            "PAM4",
+            "QAM16",
+            "QAM64",
+            "QPSK",
+            "WBFM",
+        ]
+
+    @property
+    def snr_list(self) -> List[int]:
+        """Return the list of SNR values in the RML2016.10b dataset."""
+        return [
+            -20,
+            -18,
+            -16,
+            -14,
+            -12,
+            -10,
+            -8,
+            -6,
+            -4,
+            -2,
+            0,
+            2,
+            4,
+            6,
+            8,
+            10,
+            12,
+            14,
+            16,
+            18,
+        ]
+    
+    def load(self, batch_size: Optional[int] = None, shuffle: Optional[bool] = None):
+        """Load the RML2016.10b dataset and return data loaders."""
+        # Load the dataset
+        data_dict = self.load_dat(file_path=self.file_path)
+
+        mods, snrs = [
+            sorted(list(set([k[j] for k in data_dict.keys()]))) for j in [0, 1]
+        ]
+
+        # 创建训练集、验证集和测试集的数据列表
+        X_train_list, X_val_list, X_test_list, y_train_list, y_val_list, y_test_list = (
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+        )
+
+        for idx, mod in enumerate(mods):
+            X = data_dict[(mod, self.target_snr)]
+            y = np.ones(X.shape[0]) * idx
+
+            # 划分出训练集的比例为60%
+            X_train, X_temp, y_train, y_temp = train_test_split(
+                X, y, test_size=0.4, random_state=42
+            )
+
+            # 将剩余的40%的数据平均划分为测试集和验证集
+            X_val, X_test, y_val, y_test = train_test_split(
+                X_temp, y_temp, test_size=0.5, random_state=42
+            )
+
+            X_train_list.append(X_train)
+            X_val_list.append(X_val)
+            X_test_list.append(X_test)
+            y_train_list.append(y_train)
+            y_val_list.append(y_val)
+            y_test_list.append(y_test)
+
+        X_train = np.vstack(X_train_list)
+        X_val = np.vstack(X_val_list)
+        X_test = np.vstack(X_test_list)
+        y_train = np.hstack(y_train_list).astype(int)
+        y_val = np.hstack(y_val_list).astype(int)
+        y_test = np.hstack(y_test_list).astype(int)
+
+        # Create the dataset objects and do normalization
+        train_dataset = ModulationFineTuningDataset(
+            features=torch.FloatTensor(self.normalization(X_train)),
+            labels=torch.LongTensor(y_train),
+        )
+        val_dataset = ModulationFineTuningDataset(
+            features=torch.FloatTensor(self.normalization(X_val)),
+            labels=torch.LongTensor(y_val),
+        )
+        test_dataset = ModulationFineTuningDataset(
+            features=torch.FloatTensor(self.normalization(X_test)),
+            labels=torch.LongTensor(y_test),
+        )
+
+        # Return the data loaders
+        return self.get_data_loader(
+            train_dataset=train_dataset,
+            val_dataset=val_dataset,
+            test_dataset=test_dataset,
+            batch_size=batch_size,
+            shuffle=shuffle,
+        )
 
 
 class PreTrainingDataLoader(object):
@@ -268,3 +384,15 @@ class PreTrainingDataLoader(object):
     def __init__(self, configs) -> None:
         super().__init__()
         self.configs = configs
+
+
+
+class RML2018aDataLoader(BaseDataLoader):
+    """Data loader for the RML2018.10a dataset."""
+    
+    def __init__(self, configs) -> None:
+        super().__init__(configs)
+        
+        
+    
+    
