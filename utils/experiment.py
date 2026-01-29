@@ -31,6 +31,7 @@ from utils.tools import (
     OptimInterface,
     logging_results,
     print_configs,
+    get_confusion_matrix,
 )
 
 
@@ -173,23 +174,6 @@ class BaseExperiment(ABC):
             print_separator=True,
         )
 
-    def confusion_matrix(
-        self, predictions: torch.Tensor, targets: torch.Tensor
-    ) -> None:
-        """计算混淆矩阵"""
-        # 展平并转为numpy数组
-        predictions_np = predictions.flatten().cpu().numpy()
-        targets_np = targets.flatten().cpu().numpy()
-
-        # 计算混淆矩阵（labels确保类别顺序）
-        labels = np.arange(self.n_classes) if self.n_classes else None
-        cm_np = confusion_matrix(predictions_np, targets_np, labels=labels)
-
-        # 转回PyTorch张量
-        cm_tensor = torch.from_numpy(cm_np)
-
-        return cm_tensor
-
     def save_results(
         self,
         predictions: torch.Tensor,
@@ -238,13 +222,34 @@ class BaseExperiment(ABC):
             "path",  # The path to the saved checkpoint and results
         ]
 
+    def logging(
+        self, time_now: str, accuracy: float, time_mean: Union[float, np.ndarray]
+    ) -> None:
+        # Log the experiment results
+        # Wait for all processes to finish before saving
+        self.accelerator.wait_for_everyone()
+
+        # Only save main process saves the model
+        if self.accelerator.is_main_process:
+
+            messages = {
+                "Timestamp": time_now,
+                "Dataset": self.configs.dataset,
+                "Model": self.model,
+                "SNR": self.configs.snr,
+                "Accuracy": accuracy,
+                "Time": time_mean,
+                "split_ratio": self.configs.split_ratio,
+                "seq_len": self.configs.seq_len,
+            }
+
 
 class SupervisedExperiment(BaseExperiment):
 
     def __init__(
-        self, configs, accelerate: Accelerator, setting: str, time_now: str
+        self, configs, accelerator: Accelerator, setting: str, time_now: str
     ) -> None:
-        super().__init__(configs=configs, accelerator=accelerate, setting=setting)
+        super().__init__(configs=configs, accelerator=accelerator, setting=setting)
         self.print_start_message(time_now=time_now)
 
         # Load the data for training and testing
@@ -264,6 +269,9 @@ class SupervisedExperiment(BaseExperiment):
 
         # Create the loss function for classification
         self.criterion = get_loss_fn(configs.criterion)
+
+        # The epoch number for model training
+        self.num_epochs = configs.num_epochs
 
     @property
     def dataset_dict(self) -> Dict[str]:
@@ -377,7 +385,7 @@ class SupervisedExperiment(BaseExperiment):
 
         return val_loss.item() / num_samples, val_accuracy.item() / num_samples
 
-    def test(self):
+    def test(self) -> Tuple[float, torch.Tensor, torch.Tensor, Union[np.ndarray]]:
         """
         A unified interface for auto modulation classification testing.
 
@@ -396,7 +404,7 @@ class SupervisedExperiment(BaseExperiment):
         self.accelerator.load_state(self.checkpoint_path)
 
         # Create the lists to store predictions and targets
-        inputs = []
+        # FIXME: 这里要进行修改和调整
         predictions = []
         targets = []
         time_list = []
@@ -405,14 +413,86 @@ class SupervisedExperiment(BaseExperiment):
         self.model.eval()
 
         with torch.no_grad():
-
             for batch_x, batch_y in tqdm(self.test_loader):
+
                 time_start = time.time()
                 outputs = self.model(batch_x)
                 time_end = time.time()
 
                 time_list.append(time_end - time_start)
 
-                inputs.append(batch_x)
                 predictions.append(outputs)
                 targets.append(batch_y)
+
+        predictions = torch.concatenate(predictions, axis=0)
+        targets = torch.concatenate(targets, axis=0)
+
+        # Calculate the evaluation metrics
+        num_samples = predictions.shape[0]
+
+        _, predicted = torch.max(predictions, dim=1)
+        accuracy += torch.eq(predicted, targets).sum() / num_samples
+
+        return accuracy.item(), predictions, targets, np.mean(time_list)
+
+    def run(self):
+        # Create the EarlyStopping object
+        early_stopping = EarlyStopping(
+            accelerator=self.accelerator,
+            patience=self.patience,
+            verbose=True,
+            delta=self.configs.delta,
+        )
+
+        # Prepare the model, optimizer, and data loaders with accelerator
+        (
+            self.model,
+            self.optimizer,
+            self.scheduler,
+            self.train_loader,
+            self.test_loader,
+        ) = self.accelerator.prepare(
+            self.model,
+            self.optimizer,
+            self.scheduler,
+            self.train_loader,
+            self.test_loader,
+        )
+
+        train_loss, train_acc, val_loss, val_acc = (
+            torch.zeros(self.num_epochs),
+            torch.zeros(self.num_epochs),
+            torch.zeros(self.num_epochs),
+            torch.zeros(self.num_epochs),
+        )
+
+        for epoch in range(self.num_epochs):
+            # Training the model
+            train_loss[epoch], train_acc[epoch] = self.train(epoch=epoch + 1)
+
+            # Validation
+            val_loss[epoch], val_acc[epoch] = self.val(epoch=epoch + 1)
+
+            # Check the early stopping condition
+            early_stopping(val_loss[epoch], self.model, self.checkpoint_path)
+
+            if early_stopping.early_stop:
+                self.accelerator.print(
+                    "🔥"
+                    + Fore.RED
+                    + "Early stopping triggered. Stopping training."
+                    + Style.RESET_ALL
+                )
+                break
+
+        # Start testing after training
+        accuracy, predictions, targets, time_mean = self.test()
+
+        # 计算混淆矩阵
+        confusion_matrix = get_confusion_matrix(
+            predictions=predictions, targets=targets, num_classes=self.num_classes
+        )
+
+        # 保存结果
+
+        # logging the results to csv file

@@ -11,6 +11,8 @@ from pathlib import Path
 
 import numpy as np
 
+from sklearn.metrics import confusion_matrix
+
 import torch
 from torch import nn
 
@@ -395,3 +397,36 @@ def print_configs(
 
     # Print to console via accelerator (supports distributed training)
     accelerator.print(output_text)
+
+
+def accuracy(outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    pass
+
+
+def get_confusion_matrix(
+    predictions: torch.Tensor, targets: torch.Tensor, n_classes: int
+) -> None:
+    """计算混淆矩阵"""
+    # 展平并转为numpy数组
+    predictions_np = predictions.flatten().cpu().numpy()
+    targets_np = targets.flatten().cpu().numpy()
+
+    # 计算混淆矩阵（labels确保类别顺序）
+    labels = np.arange(n_classes) if n_classes else None
+    cm_np = confusion_matrix(predictions_np, targets_np, labels=labels)
+
+    # 转回PyTorch张量
+    cm_tensor = torch.from_numpy(cm_np)
+
+    return cm_tensor
+
+
+def plot_tsne():
+    pass
+
+
+def plot_confusion_matrix(
+    confusion_matrix: torch.Tensor, class_list: List[str]
+) -> None:
+    """Plot confusion matrix."""
+    pass

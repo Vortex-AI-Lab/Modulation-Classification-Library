@@ -75,6 +75,12 @@ parser.add_argument(
 parser.add_argument(
     "--scale", type=bool, default=True, help="Whether to standard the training data."
 )
+parser.add_argument(
+    "--seq_len",
+    type=float,
+    default=128,
+    help="The length of each sequence of IQ inputs data.",
+)
 
 # The model hyper-parameters
 parser.add_argument(
