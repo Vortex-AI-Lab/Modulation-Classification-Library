@@ -212,3 +212,6 @@ dataset/
 
 # The Checkpoint folder for model training
 checkpoints/
+
+# The logging results csv file
+results.csv
