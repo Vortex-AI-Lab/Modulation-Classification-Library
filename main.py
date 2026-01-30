@@ -58,7 +58,7 @@ parser.add_argument(
     help="The path to the root directory of the dataset",
 )
 parser.add_argument(
-    "--data_path",
+    "--file_path",
     type=str,
     default="./dataset/hello.csv",
     help="The path of the training and testing dataset for supervised learning.",
@@ -108,6 +108,12 @@ parser.add_argument(
 parser.add_argument(
     "--activation", type=str, default="gelu", help="The activation function."
 )
+parser.add_argument(
+    "--dropout",
+    type=float,
+    default=0.1,
+    help="The dropout rate in deep learning models.",
+)
 
 # The optimizer, scheduler, and criterion hyper-parameters
 parser.add_argument(
@@ -145,6 +151,9 @@ parser.add_argument(
 )
 parser.add_argument(
     "--learning_rate", type=float, default=0.001, help="The learning rate of optimizer."
+)
+parser.add_argument(
+    "--num_workers", type=int, default=0, help="The number of workers for dataloader."
 )
 parser.add_argument(
     "--num_epochs",
@@ -291,5 +300,5 @@ if __name__ == "__main__":
 
     # Create and run the experiment
     exp = run_amc_experiment(
-        args=args, setting=setting, accelerator=accelerator, time_now=time_now
+        configs=args, setting=setting, accelerator=accelerator, time_now=time_now
     )

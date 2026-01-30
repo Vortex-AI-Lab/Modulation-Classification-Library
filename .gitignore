@@ -209,3 +209,6 @@ __marimo__/
 # Modulation Classification Datasets
 data/
 dataset/
+
+# The Checkpoint folder for model training
+checkpoints/

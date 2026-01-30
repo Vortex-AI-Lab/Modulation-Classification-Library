@@ -21,9 +21,9 @@ from sklearn.metrics import confusion_matrix
 from model import MCformer
 
 from utils.dataset import (
-    RML2016DataLoader,
-    RML2018DataLoader,
-    PreTrainingDataLoader,
+    RML2016aDataLoader,
+    RML2016bDataLoader,
+    RML2018aDataLoader,
 )
 from utils.tools import (
     get_loss_fn,
@@ -42,6 +42,8 @@ class BaseExperiment(ABC):
         super().__init__()
         self.configs = configs
         self.accelerator = accelerator
+
+        self.model_name = configs.model
 
         self.dataset = configs.dataset
         self.snr = configs.snr
@@ -64,7 +66,7 @@ class BaseExperiment(ABC):
 
         # The file path of the training dataset for supervised learning
         # Or the testing dataset for unsupervised learning (zero-shot learning)
-        self.data_path = configs.data_path
+        self.file_path = configs.file_path
 
         # The root path of the data for model fine-tuning or large scale pre-training
         self.root_path = configs.root_path
@@ -78,7 +80,7 @@ class BaseExperiment(ABC):
     def model_dict(self) -> Dict[str, nn.Module]:
         """Return a dictionary of available models."""
         return {
-            "MCformer": MCformer.Model,
+            "MCformer": MCformer,
             # Add other models here as needed
         }
 
@@ -159,7 +161,6 @@ class BaseExperiment(ABC):
             time_now=time_now,
             config={  # The main configs parameters to be printed
                 "seq_len": self.configs.seq_len,
-                "pred_len": self.configs.pred_len,
                 "epochs": self.configs.num_epochs,
                 "batch_size": self.batch_size,
                 "learning_rate": self.configs.learning_rate,
@@ -167,9 +168,9 @@ class BaseExperiment(ABC):
                 "scheduler": self.configs.scheduler,
                 "criterion": self.configs.criterion,
             },
-            experiment_name="Spectrum Prediction",
+            experiment_name="Auto Modulation Classification",
             model_name=self.model_name,
-            dataset=self.configs.dataset_name,
+            dataset=self.configs.dataset,
             mode=self.mode,
             print_separator=True,
         )
@@ -298,12 +299,14 @@ class SupervisedExperiment(BaseExperiment):
         self.num_epochs = configs.num_epochs
 
     @property
-    def dataset_dict(self) -> Dict[str]:
+    def dataset_dict(
+        self,
+    ) -> Dict[str, Union[RML2016aDataLoader, RML2016aDataLoader, RML2018aDataLoader]]:
         return {
-            "RML2016a": RML2016DataLoader,
-            "RML2016b": RML2016DataLoader,
-            "RML2018a": RML2018DataLoader,
-            "HisarMod2019.1": None,
+            "RML2016a": RML2016aDataLoader,
+            "RML2016b": RML2016bDataLoader,
+            "RML2018a": RML2018aDataLoader,
+            # "HisarMod2019.1": None,
         }
 
     def load_data(
@@ -323,7 +326,7 @@ class SupervisedExperiment(BaseExperiment):
         self.n_classes = len(self.class_list)
         self.configs.n_classes = self.n_classes
 
-        train_loader, val_loader, test_loader = data_interface.get_data_loader()
+        train_loader, val_loader, test_loader = data_interface.load()
 
         return train_loader, val_loader, test_loader
 
